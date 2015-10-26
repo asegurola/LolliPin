@@ -1,5 +1,6 @@
 package com.github.orangegangsters.lollipin.lib.managers;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
@@ -11,7 +12,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.github.omadahealth.typefaceview.TypefaceTextView;
-import com.github.orangegangsters.lollipin.lib.PinActivity;
 import com.github.orangegangsters.lollipin.lib.R;
 import com.github.orangegangsters.lollipin.lib.enums.KeyboardButtonEnum;
 import com.github.orangegangsters.lollipin.lib.interfaces.KeyboardButtonClickedListener;
@@ -27,7 +27,7 @@ import java.util.List;
  * Call this activity in normal or singleTop mode (not singleTask or singleInstance, it does not work
  * with {@link android.app.Activity#startActivityForResult(android.content.Intent, int)}).
  */
-public abstract class AppLockActivity extends PinActivity implements KeyboardButtonClickedListener, View.OnClickListener {
+public abstract class AppLockActivity extends Activity implements KeyboardButtonClickedListener, View.OnClickListener {
 
     public static final String TAG = AppLockActivity.class.getSimpleName();
     public static final String ACTION_CANCEL = TAG + ".actionCancelled";
@@ -43,6 +43,7 @@ public abstract class AppLockActivity extends PinActivity implements KeyboardBut
     protected int mAttempts = 1;
     protected String mPinCode;
     protected String mOldPinCode;
+    private boolean pinSuccess;
 
     /**
      * First creation
@@ -151,7 +152,7 @@ public abstract class AppLockActivity extends PinActivity implements KeyboardBut
         super.finish();
         if(mLockManager != null) {
             AppLock appLock = mLockManager.getAppLock();
-            if(appLock != null) {
+            if (appLock != null && pinSuccess) {
                 appLock.setLastActiveMillis();
             }
         }
@@ -252,20 +253,32 @@ public abstract class AppLockActivity extends PinActivity implements KeyboardBut
         }
     }
 
+    private void checkToSetPinChallengeCancelled() {
+        if (AppLock.UNLOCK_PIN == getType()) {
+            mLockManager.getAppLock().setPinChallengeCancelled(true);
+            LocalBroadcastManager
+                    .getInstance(this)
+                    .sendBroadcast(new Intent().setAction(ACTION_CANCEL));
+        }
+    }
+
     /**
      * Override {@link #onBackPressed()} to prevent user for finishing the activity
      */
     @Override
     public void onBackPressed() {
         if (getBackableTypes().contains(mType)) {
-            if (AppLock.UNLOCK_PIN == getType()) {
-                mLockManager.getAppLock().setPinChallengeCancelled(true);
-                LocalBroadcastManager
-                        .getInstance(this)
-                        .sendBroadcast(new Intent().setAction(ACTION_CANCEL));
-            }
+            checkToSetPinChallengeCancelled();
             super.onBackPressed();
         }
+    }
+
+    @Override
+    protected void onStop() {
+        if (!pinSuccess) {
+            checkToSetPinChallengeCancelled();
+        }
+        super.onStop();
     }
 
     /**
@@ -302,6 +315,7 @@ public abstract class AppLockActivity extends PinActivity implements KeyboardBut
 
     protected void onPinCodeSuccess() {
         onPinSuccess(mAttempts);
+        pinSuccess = true;
         mAttempts = 1;
     }
 

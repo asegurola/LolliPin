@@ -12,6 +12,11 @@ import android.app.Activity;
 public interface LifeCycleInterface {
 
     /**
+     * Called in {@link android.app.Activity#onCreate}
+     */
+    public void onActivityCreated(Activity activity);
+
+    /**
      * Called in {@link android.app.Activity#onResume()}
      */
     public void onActivityResumed(Activity activity);

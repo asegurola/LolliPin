@@ -82,6 +82,8 @@ public class AppLockImpl<T extends AppLockActivity> extends AppLock implements L
      */
     private Class<T> mActivityClass;
 
+    private String salt;
+
     public AppLockImpl(Context context, Class<T> activityClass) {
         super();
         this.mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
@@ -102,11 +104,21 @@ public class AppLockImpl<T extends AppLockActivity> extends AppLock implements L
     }
 
     private String getSalt() {
-        String salt = mSharedPreferences.getString(PASSWORD_SALT_PREFERENCE_KEY, null);
+
+        if (salt == null) {
+            salt = mSharedPreferences.getString(PASSWORD_SALT_PREFERENCE_KEY, null);
+            if (salt != null) {
+                salt = Base64.encodeToString(Base64.decode(salt, Base64.DEFAULT), Base64.DEFAULT);
+            }
+        }
+
         if (salt == null) {
             salt = generateSalt();
             setSalt(salt);
+            Log.d(TAG, "Creating Salt: " + salt);
         }
+
+        Log.d(TAG, "getSalt: " + salt + " length: " + salt.length());
         return salt;
     }
 
@@ -188,6 +200,7 @@ public class AppLockImpl<T extends AppLockActivity> extends AppLock implements L
                 .remove(TIMEOUT_MILLIS_PREFERENCE_KEY)
                 .remove(LOGO_ID_PREFERENCE_KEY)
                 .remove(SHOW_FORGOT_PREFERENCE_KEY)
+                .remove(PIN_CHALLENGE_CANCELLED_PREFERENCE_KEY)
                 .apply();
     }
 
@@ -309,11 +322,13 @@ public class AppLockImpl<T extends AppLockActivity> extends AppLock implements L
         String clazzName = activity.getClass().getName();
         Log.d(TAG, "onActivityPaused " + clazzName);
 
-        setLastActiveMillis();
+        if (!shouldLockSceen(activity)) {
+            setLastActiveMillis();
+        }
     }
 
     @Override
-    public void onActivityResumed(Activity activity) {
+    public void onActivityCreated(Activity activity) {
         if (isIgnoredActivity(activity)) {
             return;
         }
@@ -328,12 +343,17 @@ public class AppLockImpl<T extends AppLockActivity> extends AppLock implements L
             intent.putExtra(AppLock.EXTRA_TYPE, AppLock.UNLOCK_PIN);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             activity.getApplication().startActivity(intent);
-        }
+        } else {
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.GINGERBREAD_MR1) {
+                return;
+            }
 
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.GINGERBREAD_MR1) {
-            return;
+            setLastActiveMillis();
         }
+    }
 
-        setLastActiveMillis();
+    @Override
+    public void onActivityResumed(Activity activity) {
+
     }
 }
